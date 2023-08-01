@@ -1,67 +1,34 @@
-pipeline{
-    agent {label "mnp-slave"}
-    stages{
-        stage ("User List") {
-            steps {
-                sh "cat /etc/passwd"
-                
-            }
-        }
-        stage ("To Check Memory") {
-            steps {
-                sh "df -h"
-            }
-        }
-        stage ("OS Format") {
-            steps {
-                sh "cat /etc/os-release"
-            }
-        }
-        stage ("Stage with") {
-            steps {
-                sh '''
-                df -h
-                '''
-            }
+pipeline {
+    agent any
 
-        }
-        stage ("Create a directory") {
+    parameters {
+        choice(
+            choices: ['YES', 'NO'],
+            description: 'Choose if Deployment should happen for Dev',
+            name: 'CDN'
+        )
+    }
+
+    stages {
+        stage("Upload a file to AWS S3") {
+            when {
+                expression { params.CDN == "YES" }
+            }
             steps {
-                sh "sudo mkdir /tmp/my-test21"
+                checkout scm
+                sh "aws s3 sync /var/lib/jenkins/workspace/${JOB_NAME}/single-module/ s3://cdt-test-build/single-module/"
+                echo "The file has been uploaded"
             }
         }
-        stage ("Add the file to the Directory") {
-            steps {
-                sh '''
-                sudo touch /tmp/my-test21/test1.txt
-                sudo chown -R jenkins:jenkins /tmp/my-test21
-                sudo chmod -R 777 /tmp/my-test21
-                sudo echo "Hi,this is my new file" >> /tmp/my-test21/test1.txt
-                '''
+        
+        stage("Do not upload a file") {
+            when {
+                expression { params.CDN == "NO" }
             }
-        }
-        stage ("Show what is in the file") {
             steps {
-                sh '''
-                sudo cat /tmp/my-test21/test1.txt
-                '''
-            }
-        }
-        stage ("Create a user") {
-            steps {
-                sh '''
-                sudo adduser user21
-                '''
+                echo "Do not upload the file"
             }
         }
     }
-    post {
-        success {
-            script {
-                    sh '''
-                    aws ec2 create-image --instance-id i-04a1abc430f8bd504 --name "My Jenkins-Slave" --no-reboot --description "An AMI for my Jenkins-Slave"
-                    '''
-                }
-            }
-        }
 }
+
